@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
-import subprocess
 
 
 @contextmanager
