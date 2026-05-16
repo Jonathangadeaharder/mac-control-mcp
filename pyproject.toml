@@ -67,5 +67,22 @@ markers = [
     "integration: subprocess/mdfind/AX calls (macOS only)",
     "e2e: full JSON-RPC stdio roundtrip (macOS only)",
 ]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --cov --cov-branch --cov-fail-under=90 --cov-report=term-missing"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+
+[tool.mutmut]
+paths = ["src", "tests"]
+backup = false
+runner = "uv run pytest --cov --cov-branch -x"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]
+
