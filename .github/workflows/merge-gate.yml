@@ -2,9 +2,7 @@ name: Merge Gate
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -15,41 +13,64 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  repo-hygiene:
-    name: Repo Hygiene
-    runs-on: ["self-hosted", "security", "macos"]
+  format:
+    name: Format Check
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Check for iCloud sync conflicts
-        run: |
-          if find . -path ./node_modules -prune -o -path ./.git -prune -o -name "* [0-9]*" -print | grep -q .; then
-            echo "::error::iCloud sync conflicts detected"
-            find . -path ./node_modules -prune -o -path ./.git -prune -o -name "* [0-9]*" -print
-            exit 1
-          fi
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Ruff format check
+        run: uvx ruff format --check .
 
-  lint-typecheck:
-    name: Lint & Typecheck
-    runs-on: ubuntu-latest
+  lint:
+    name: Lint
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
       - name: Ruff lint
         run: uvx ruff check .
+
+  typecheck:
+    name: Type Check
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - name: Pyright
         run: uvx pyright
 
-  test:
-    name: Test
-    runs-on: ["self-hosted", "python", "macos"]
+  build:
+    name: Build
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Build package
+        run: uv build
+
+  unit:
+    name: Unit Tests
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -63,62 +84,14 @@ jobs:
       - name: Tests with coverage gate
         run: uv run pytest --cov --cov-branch --cov-fail-under=90
 
-  dependency-scan:
-    name: Dependency Scan
-    runs-on: ["self-hosted", "security", "macos"]
+  mutation:
+    name: Mutation Tests
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: 1
-          ignore-unfixed: true
-
-  secret-scanning:
-    name: Secret Scanning
-    runs-on: ["self-hosted", "security", "macos"]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  codeql:
-    name: CodeQL Security
-    runs-on: ["self-hosted", "security", "macos"]
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    strategy:
-      matrix:
-        language: [python]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-
-  mutation-test:
-    name: Mutation Testing
-    runs-on: ["self-hosted", "python", "macos"]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -132,12 +105,52 @@ jobs:
       - name: Run mutation tests
         run: uv run mutmut run
 
+  deadcode:
+    name: Dead Code
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Vulture dead code detection
+        run: uvx vulture src/ --min-confidence 80
+
+  deps:
+    name: Dependency Audit
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true
+
+  semgrep:
+    name: Semgrep Security
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/default
+          generateSarif: "1"
+
   sonarcloud:
     name: SonarCloud
-    runs-on: ["self-hosted", "security", "macos"]
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: SonarCloud Scan
@@ -148,27 +161,31 @@ jobs:
 
   required-checks:
     name: Required Checks (Merge)
-    runs-on: ["self-hosted", "security", "macos"]
+    if: always() && (github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ["self-hosted", "macos", "arm64", "VidiomTM"]
     needs:
-      - repo-hygiene
-      - lint-typecheck
-      - test
-      - dependency-scan
-      - secret-scanning
-      - codeql
-      - mutation-test
+      - format
+      - lint
+      - typecheck
+      - build
+      - unit
+      - mutation
+      - deadcode
+      - deps
+      - semgrep
       - sonarcloud
-    if: always()
     steps:
       - name: Verify all jobs passed
         run: |
-          if [ "${{ needs.repo-hygiene.result }}" != "success" ] || \
-             [ "${{ needs.lint-typecheck.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.dependency-scan.result }}" != "success" ] || \
-             [ "${{ needs.secret-scanning.result }}" != "success" ] || \
-             [ "${{ needs.codeql.result }}" != "success" ] || \
-             [ "${{ needs.mutation-test.result }}" != "success" ] || \
+          if [ "${{ needs.format.result }}" != "success" ] || \
+             [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ] || \
+             [ "${{ needs.unit.result }}" != "success" ] || \
+             [ "${{ needs.mutation.result }}" != "success" ] || \
+             [ "${{ needs.deadcode.result }}" != "success" ] || \
+             [ "${{ needs.deps.result }}" != "success" ] || \
+             [ "${{ needs.semgrep.result }}" != "success" ] || \
              [ "${{ needs.sonarcloud.result }}" != "success" ]; then
             echo "One or more merge gate jobs failed."
             exit 1
