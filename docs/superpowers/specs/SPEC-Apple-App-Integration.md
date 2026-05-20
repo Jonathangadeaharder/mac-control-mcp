@@ -4,7 +4,7 @@ checksum: 043b1bc6a45868a15bdab2cc47d99f78bfbec3602dac3ed50bcb2589b733fdb0
 # SPEC: Apple App Integration
 
 **Version:** 0.1.0
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-05-17
 
 ## Purpose

@@ -3,7 +3,7 @@ id: TDD-MCP
 kind: tdd
 title: mac-control-mcp
 description: 'Unified macOS automation MCP server using AX, vision/OCR, and AppleScript/JXA'
-status: draft
+status: accepted
 date: 2026-05-17T00:00:00.000Z
 authors: []
 reviewers: []
