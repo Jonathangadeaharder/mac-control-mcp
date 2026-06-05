@@ -24,7 +24,7 @@ mac-control-mcp is a Python MCP server (v0.1.0, MIT) for macOS automation — ac
 
 ## Scope
 
-Assessed: 8 runtime dependencies, the full MCP tool surface (AX, OCR, AS/JXA, calendar, mail, messages, notes, reminders), test suite, CI/CD pipeline. Excluded: the macOS accessibility permissions model itself and third-party MCP client configurations.
+Assessed: 7 runtime dependencies + 1 optional (pillow), the full MCP tool surface (AX, OCR, AS/JXA, calendar, mail, messages, notes, reminders), test suite, CI/CD pipeline. Excluded: the macOS accessibility permissions model itself and third-party MCP client configurations.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ MCP server exposing typed tools through the Model Context Protocol. Modular desi
 
 ## Tech Stack
 
-Python 3.x with MCP SDK. Runtime deps: pyobjc (5 Apple framework bindings), mcp, rapidfuzz, pyyaml — 8 total. Testing: pytest + pytest-cov, mutmut. CI/CD: pr-gate, merge-gate, pr-agent, SonarCloud.
+Python 3.x with MCP SDK. Runtime deps: pyobjc (5 Apple framework bindings), mcp, rapidfuzz, pyyaml — 7 total + 1 optional (pillow for vision scaling). Testing: pytest + pytest-cov, mutmut. CI/CD: pr-gate, merge-gate, pr-agent, SonarCloud.
 
 ## Code Quality
 
@@ -52,7 +52,7 @@ Full CI/CD with pr-gate and merge-gate workflows on self-hosted macOS arm64 runn
 
 ## Dependencies & Third-Party Risk
 
-8 runtime deps including pyobjc (large, system-coupled Apple bridging) and rapidfuzz (string matching). Pyobjc version must track macOS releases. All deps are well-maintained open source. Low supply chain risk.
+7 runtime deps + 1 optional (pillow) including pyobjc (large, system-coupled Apple bridging) and rapidfuzz (string matching). Pyobjc version must track macOS releases. All deps are well-maintained open source. Low supply chain risk.
 
 ## Risks
 
@@ -61,11 +61,11 @@ Full CI/CD with pr-gate and merge-gate workflows on self-hosted macOS arm64 runn
 | Self-hosted runner availability | Medium | High | Add secondary runner or document manual test protocol |
 | Pyobjc version tied to macOS release | Medium | Low | Document macOS version compatibility matrix |
 | Apple API deprecation (e.g., AS→JXA migration) | Low | Medium | Monitor WWDC announcements, maintain fallback paths |
-| Pillow (PIL) used at runtime but not declared in pyproject.toml | Medium | Medium | Add `pillow` to dependencies or make scaling gracefully fail |
+| Pillow (PIL) optional for image scaling — declared under `[project.optional-dependencies].vision` | Low | Low | Ensure runtime environments install `pillow` via extra (`pip install .[vision]`) or handle absence gracefully (guarded imports in `vision/capture.py`) |
 
 ## Recommendations
 
-1. Ensure Pillow is added to `pyproject.toml` dependencies (used by `vision/capture.py` for image scaling) or document that scaling is best-effort without it.
+1. Pillow is declared as an optional dependency under `[project.optional-dependencies].vision`; install via `pip install .[vision]` for image scaling, or rely on the guarded `ImportError` fallback in `vision/capture.py` that skips scaling when absent.
 2. Document minimum macOS version and tested versions in README.
 3. Monitor AppleScript deprecation trajectory and plan JXA-first migration if Apple ships removal notices.
 4. Add secondary macOS runner or fallback CI strategy for runner availability.
